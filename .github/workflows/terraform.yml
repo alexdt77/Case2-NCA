@@ -12,7 +12,10 @@ on:
 jobs:
   terraform:
     name: Terraform Plan & Apply
-    runs-on: self-hosted    # jouw eigen Mac runner
+    runs-on: self-hosted    
+    permissions:
+      id-token: write       
+      contents: read   
     defaults:
       run:
         working-directory: Infra

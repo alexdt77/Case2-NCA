@@ -1,35 +1,22 @@
-name: Terraform Destroy (Full Cleanup)
+name: Destroy AWS infrastructure
 
 on:
   workflow_dispatch:
 
 jobs:
   destroy:
-    name: Destroy AWS Infrastructure
     runs-on: self-hosted
     permissions:
       id-token: write
       contents: read
+
     defaults:
       run:
-        working-directory: Infra
-
-    env:
-      AWS_REGION: eu-central-1
-      TF_IN_AUTOMATION: true
-      TF_INPUT: false
-      TF_LOG: INFO
-      TF_LOG_PATH: terraform_destroy.log
-      TF_VAR_db_master_password: ${{ secrets.TF_VAR_db_master_password }}
+        working-directory: Infra/core
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -37,17 +24,16 @@ jobs:
           role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role
           aws-region: eu-central-1
 
-      - name: Terraform Init
-        run: terraform init -input=false -no-color
-
-      - name: Terraform Show Current State
-        run: terraform state list || echo "No existing resources in state file."
-
-      - name: Terraform Destroy (Force Cleanup)
-        run: terraform destroy -auto-approve -lock=false -no-color || true
-
-      - name: Upload Destroy Logs
-        uses: actions/upload-artifact@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          name: terraform-destroy-log
-          path: Infra/terraform_destroy.log
+          terraform_version: 1.9.8
+
+      - name: Terraform Init
+        run: terraform init -input=false -reconfigure
+
+      - name: Terraform Unlock (fallback)
+        run: terraform force-unlock -force 1234567890 || true
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -lock=false -var "db_master_password=ChangeMe_StrongPW!"

@@ -20,6 +20,7 @@ jobs:
     env:
       AWS_REGION: eu-central-1
       TF_IN_AUTOMATION: true
+      TF_VAR_db_master_password: ${{ secrets.TF_VAR_db_master_password }}
 
     defaults:
       run:

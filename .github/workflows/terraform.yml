@@ -7,12 +7,12 @@ on:
       - 'Infra/**'
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   terraform:
     name: Terraform Plan & Apply
-    runs-on: self-hosted  
+    runs-on: self-hosted    # jouw eigen Mac runner
     defaults:
       run:
         working-directory: Infra
@@ -30,12 +30,10 @@ jobs:
         with:
           terraform_version: 1.9.8
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role   # 👈 vervang dit met jouw eigen ARN
           aws-region: eu-central-1
 
       - name: Terraform Init

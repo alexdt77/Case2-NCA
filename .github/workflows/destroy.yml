@@ -1,11 +1,11 @@
-name: Terraform Destroy (Full Cleanup)
+name: Terraform Destroy (No Backend - Force Cleanup)
 
 on:
   workflow_dispatch:
 
 jobs:
   destroy:
-    name: Destroy AWS Infrastructure
+    name: Destroy AWS Infra (Local Init)
     runs-on: self-hosted
     permissions:
       id-token: write
@@ -13,7 +13,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: Infra  # 👈 DIT IS DE JUISTE MAP
+        working-directory: Infra
 
     env:
       AWS_REGION: eu-central-1
@@ -35,12 +35,13 @@ jobs:
         with:
           terraform_version: 1.9.8
 
-      - name: Terraform Init
-        run: terraform init -input=false -reconfigure
+      # 🔹 Init zonder S3 backend
+      - name: Terraform Init (local)
+        run: terraform init -input=false -backend=false
 
-      - name: Remove ECS Services
+      # 🔹 Forceer ECS deletions (zodat cluster niet vastloopt)
+      - name: Force remove ECS services
         run: |
-          echo "Removing ECS services..."
           for cluster in $(aws ecs list-clusters --query "clusterArns[]" --output text); do
             for service in $(aws ecs list-services --cluster $cluster --query "serviceArns[]" --output text); do
               aws ecs update-service --cluster $cluster --service $service --desired-count 0 || true
@@ -48,12 +49,14 @@ jobs:
             done
           done
 
-      - name: Terraform Destroy
+      # 🔹 Terraform destroy zonder lock of remote backend
+      - name: Terraform Destroy (force)
         run: terraform destroy -auto-approve -lock=false -var "db_master_password=ChangeMe_StrongPW!"
 
+      # 🔹 Volledige cleanup van overgebleven AWS-resources
       - name: Force Cleanup (ECR, Lambda, S3, DynamoDB)
         run: |
-          echo "Force cleanup in case Terraform missed something..."
+          echo "Force cleanup in progress..."
           for repo in $(aws ecr describe-repositories --query "repositories[].repositoryName" --output text); do
             aws ecr delete-repository --repository-name $repo --force || true
           done
@@ -70,4 +73,4 @@ jobs:
           done
 
       - name: ✅ Done
-        run: echo "✅ Full AWS cleanup completed successfully!"
+        run: echo "✅ AWS resources fully destroyed, local cleanup complete!"

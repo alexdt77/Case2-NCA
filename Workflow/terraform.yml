@@ -11,7 +11,7 @@ on:
 jobs:
   terraform:
     name: Terraform Plan & Apply
-    runs-on: macos-latest
+    runs-on: self-hosted        # 👈 jouw eigen Mac-runner
     defaults:
       run:
         working-directory: Infra
@@ -37,7 +37,7 @@ jobs:
           aws-region: eu-central-1
 
       - name: Terraform Init
-        run: terraform init -backend-config="region=${AWS_REGION}"
+        run: terraform init
 
       - name: Terraform Validate
         run: terraform validate
@@ -45,8 +45,6 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -out=tfplan
 
-      # Pas toe via workflow_dispatch of op main-push
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
-

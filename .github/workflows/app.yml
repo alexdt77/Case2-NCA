@@ -1,26 +1,25 @@
-name: Web App Deployment
+name: Deploy Web App to ECS
 
 on:
   push:
     branches: [ "main" ]
     paths:
       - 'Infra/app/**'
-      - 'Infra/ecs_app.tf'
-      - 'Infra/ecr.tf'
+      - '.github/workflows/app.yml'
   workflow_dispatch:
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPO_NAME: case2nca-webapp
+  IMAGE_TAG: latest
 
 jobs:
   deploy:
-    name: Deploy Web App to ECS
+    name: Build, Push & Deploy Web App
     runs-on: self-hosted
     permissions:
       id-token: write
       contents: read
-
-    env:
-      AWS_REGION: eu-central-1
-      TF_IN_AUTOMATION: true
-      TF_VAR_db_master_password: ${{ secrets.TF_VAR_db_master_password }}
 
     defaults:
       run:
@@ -30,24 +29,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 🔹 Configure AWS credentials via OIDC (geen hardcoded secrets)
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role
-          aws-region: eu-central-1
+          aws-region: ${{ env.AWS_REGION }}
 
+      # 🔹 Login to Amazon ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push web app image
+      # 🔹 Build en push Docker image
+      - name: Build and Push Docker Image
+        working-directory: Infra/app
         run: |
-          cd app
-          docker build -t case2nca-webapp .
-          docker tag case2nca-webapp:latest ${{ steps.login-ecr.outputs.registry }}/case2nca-webapp:latest
-          docker push ${{ steps.login-ecr.outputs.registry }}/case2nca-webapp:latest
+          docker build -t $ECR_REPO_NAME:$IMAGE_TAG .
+          docker tag $ECR_REPO_NAME:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}:$IMAGE_TAG
+          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}:$IMAGE_TAG
 
-      - name: Deploy ECS Web App
-        run: |
-          terraform init -lock=false
-          terraform apply -auto-approve -lock=false -target=aws_ecs_service.app_service
+      # 🔹 Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      # 🔹 Terraform init & apply (ECS krijgt nieuwe image)
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Plan
+        run: terraform plan -refresh=false -lock=false -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan

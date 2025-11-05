@@ -1,0 +1,41 @@
+name: Terraform Destroy (Full Cleanup)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  destroy:
+    name: Destroy AWS Infrastructure
+    runs-on: self-hosted
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: Infra
+
+    env:
+      AWS_REGION: eu-central-1
+      TF_IN_AUTOMATION: true
+      TF_VAR_db_master_password: ${{ secrets.TF_VAR_db_master_password }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role
+          aws-region: eu-central-1
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve

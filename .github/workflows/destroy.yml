@@ -1,10 +1,11 @@
-name: Destroy AWS infrastructure
+name: Destroy AWS Infrastructure
 
 on:
   workflow_dispatch:
 
 jobs:
   destroy:
+    name: Terraform Destroy (Full Cleanup)
     runs-on: self-hosted
     permissions:
       id-token: write
@@ -14,6 +15,11 @@ jobs:
       run:
         working-directory: Infra/core
 
+    env:
+      AWS_REGION: eu-central-1
+      TF_IN_AUTOMATION: true
+      TF_VAR_db_master_password: ${{ secrets.TF_VAR_db_master_password }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,7 +28,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role
-          aws-region: eu-central-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -32,8 +38,39 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false -reconfigure
 
-      - name: Terraform Unlock (fallback)
-        run: terraform force-unlock -force 1234567890 || true
+      - name: Force Remove ECS Services (prevent stuck clusters)
+        run: |
+          echo "Removing ECS services before cluster deletion..."
+          for cluster in $(aws ecs list-clusters --query "clusterArns[]" --output text); do
+            for service in $(aws ecs list-services --cluster $cluster --query "serviceArns[]" --output text); do
+              aws ecs update-service --cluster $cluster --service $service --desired-count 0 || true
+              aws ecs delete-service --cluster $cluster --service $service --force || true
+            done
+          done
+
+      - name: Terraform Unlock (if stuck)
+        run: terraform force-unlock -force 9999999 || true
 
       - name: Terraform Destroy
         run: terraform destroy -auto-approve -lock=false -var "db_master_password=ChangeMe_StrongPW!"
+
+      - name: Force Cleanup (ECR, Lambda, S3, DynamoDB)
+        run: |
+          echo "Performing extra cleanup..."
+          for repo in $(aws ecr describe-repositories --query "repositories[].repositoryName" --output text); do
+            aws ecr delete-repository --repository-name $repo --force || true
+          done
+          for fn in $(aws lambda list-functions --query "Functions[].FunctionName" --output text); do
+            aws lambda delete-function --function-name $fn || true
+          done
+          for bucket in $(aws s3api list-buckets --query "Buckets[].Name" --output text); do
+            if [[ "$bucket" == *"case2nca"* ]]; then
+              aws s3 rb s3://$bucket --force || true
+            fi
+          done
+          for table in $(aws dynamodb list-tables --query "TableNames[]" --output text); do
+            aws dynamodb delete-table --table-name $table || true
+          done
+
+      - name: ✅ Done
+        run: echo "✅ Full AWS cleanup completed successfully!"

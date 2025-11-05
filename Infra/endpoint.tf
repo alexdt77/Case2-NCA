@@ -6,7 +6,7 @@ resource "aws_security_group" "endpoints" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr] 
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {
@@ -66,3 +66,5 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.private.id]
 }
+
+

@@ -1,1 +1,47 @@
+name: SOAR App Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'Infra/lambdas/**'
+      - 'Infra/soar_sqs.tf'
+      - 'Infra/soar.tf'
+
+jobs:
+  deploy:
+    name: Deploy SOAR Lambdas & Test Workflow
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: Infra
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+
+      - name: Zip Lambda Functions
+        run: |
+          cd lambdas/log_to_s3 && zip -r ../../log_to_s3.zip .
+          cd ../fake_firewall_block_ip && zip -r ../../fake_firewall_block_ip.zip .
+          cd ../send_to_shuffle && zip -r ../../send_to_shuffle.zip .
+
+      - name: Update Lambda Code
+        run: |
+          aws lambda update-function-code --function-name log_to_s3 --zip-file fileb://log_to_s3.zip
+          aws lambda update-function-code --function-name fake_firewall_block_ip --zip-file fileb://fake_firewall_block_ip.zip
+          aws lambda update-function-code --function-name send_to_shuffle --zip-file fileb://send_to_shuffle.zip
+
+      - name: Trigger SOAR Workflow (optional)
+        run: |
+          curl -X POST https://your-shuffle-webhook-url \
+            -H "Content-Type: application/json" \
+            -d '{"event":"test","severity":"high"}'
 

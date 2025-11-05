@@ -86,3 +86,20 @@ variable "existing_lambda_arn" {
   type    = string
   default = ""
 }
+
+variable "onprem_cidr" {
+  type    = string
+  default = "172.16.2.0/24"
+}
+
+variable "wg_port" {
+  type    = number
+  default = 51820
+}
+
+variable "wg_transfer_cidr" {
+  type    = string
+  default = "10.250.0.0/30"
+}
+
+

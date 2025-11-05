@@ -5,8 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - 'Infra/lambdas/**'
-      - 'Infra/soar_sqs.tf'
-      - 'Infra/soar.tf'
+  workflow_dispatch:  # 👈 handmatige run mogelijk maken
 
 jobs:
   deploy:

@@ -81,3 +81,17 @@ resource "aws_ecs_service" "app" {
   depends_on = [aws_lb_listener.http]
 
 }
+
+resource "aws_ecr_repository" "webapp" {
+  name = "case2nca-webapp"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Name        = "case2nca-webapp"
+    Environment = var.env
+    Owner       = var.owner
+  }
+}

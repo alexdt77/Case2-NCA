@@ -1,4 +1,4 @@
-name: SOAR App Pipeline
+name: SOAR Lambda Deployment
 
 on:
   push:
@@ -10,8 +10,8 @@ on:
 
 jobs:
   deploy:
-    name: Deploy SOAR Lambdas & Test Workflow
-    runs-on: macos-latest
+    name: Update Lambda functions and test Shuffle integration
+    runs-on: self-hosted
     defaults:
       run:
         working-directory: Infra
@@ -39,9 +39,8 @@ jobs:
           aws lambda update-function-code --function-name fake_firewall_block_ip --zip-file fileb://fake_firewall_block_ip.zip
           aws lambda update-function-code --function-name send_to_shuffle --zip-file fileb://send_to_shuffle.zip
 
-      - name: Trigger SOAR Workflow (optional)
+      - name: Test Shuffle webhook (optional)
         run: |
-          curl -X POST https://your-shuffle-webhook-url \
+          curl -X POST https://your-shuffle-workflow-url \
             -H "Content-Type: application/json" \
             -d '{"event":"test","severity":"high"}'
-

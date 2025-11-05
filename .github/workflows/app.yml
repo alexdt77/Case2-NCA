@@ -1,16 +1,26 @@
-name: SOAR Lambda Deployment
+name: Web App Deployment
 
 on:
   push:
     branches: [ "main" ]
     paths:
-      - 'Infra/lambdas/**'
-  workflow_dispatch:  # 👈 handmatige run mogelijk maken
+      - 'Infra/app/**'
+      - 'Infra/ecs_app.tf'
+      - 'Infra/ecr.tf'
+  workflow_dispatch:
 
 jobs:
   deploy:
-    name: Update Lambda functions and test Shuffle integration
+    name: Deploy Web App to ECS
     runs-on: self-hosted
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: eu-central-1
+      TF_IN_AUTOMATION: true
+
     defaults:
       run:
         working-directory: Infra
@@ -19,27 +29,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role
           aws-region: eu-central-1
 
-      - name: Zip Lambda Functions
-        run: |
-          cd lambdas/log_to_s3 && zip -r ../../log_to_s3.zip .
-          cd ../fake_firewall_block_ip && zip -r ../../fake_firewall_block_ip.zip .
-          cd ../send_to_shuffle && zip -r ../../send_to_shuffle.zip .
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Update Lambda Code
+      - name: Build and push web app image
         run: |
-          aws lambda update-function-code --function-name log_to_s3 --zip-file fileb://log_to_s3.zip
-          aws lambda update-function-code --function-name fake_firewall_block_ip --zip-file fileb://fake_firewall_block_ip.zip
-          aws lambda update-function-code --function-name send_to_shuffle --zip-file fileb://send_to_shuffle.zip
+          cd app
+          docker build -t case2nca-webapp .
+          docker tag case2nca-webapp:latest ${{ steps.login-ecr.outputs.registry }}/case2nca-webapp:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/case2nca-webapp:latest
 
-      - name: Test Shuffle webhook (optional)
+      - name: Deploy ECS Web App
         run: |
-          curl -X POST https://your-shuffle-workflow-url \
-            -H "Content-Type: application/json" \
-            -d '{"event":"test","severity":"high"}'
+          terraform init -lock=false
+          terraform apply -auto-approve -lock=false -target=aws_ecs_service.app_service

@@ -54,8 +54,8 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
-      - name: Terraform Validate
-        run: terraform validate -no-color
+      - name: Skip Terraform Validate
+        run: echo "Skipping terraform validate (redundant in CI, handled by plan)"
         
       - name: Terraform Plan
         run: |

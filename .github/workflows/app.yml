@@ -26,22 +26,23 @@ jobs:
         working-directory: Infra
 
     steps:
+      # 🧩 Stap 1: Repo ophalen
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 🔹 Configure AWS credentials via OIDC (geen hardcoded secrets)
+      # 🔑 Stap 2: AWS authenticatie via OIDC (geen hardcoded keys)
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::760981412376:role/github-actions-terraform-role
           aws-region: ${{ env.AWS_REGION }}
 
-      # 🔹 Login to Amazon ECR
+      # 🐳 Stap 3: Login bij ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 🔹 Build en push Docker image
+      # 🏗️ Stap 4: Docker image builden en pushen
       - name: Build and Push Docker Image
         working-directory: Infra/app
         run: |
@@ -49,18 +50,20 @@ jobs:
           docker tag $ECR_REPO_NAME:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}:$IMAGE_TAG
           docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPO_NAME }}:$IMAGE_TAG
 
-      # 🔹 Setup Terraform
+      # ⚙️ Stap 5: Terraform instellen
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.8
 
-      # 🔹 Terraform init & apply (ECS krijgt nieuwe image)
+      # 📦 Stap 6: Terraform init
       - name: Terraform Init
         run: terraform init -input=false
 
-      - name: Terraform Plan
-        run: terraform plan -refresh=false -lock=false -out=tfplan
+      # 🪄 Stap 7: Terraform Plan (alleen ECS)
+      - name: Terraform Plan (ECS only)
+        run: terraform plan -target=aws_ecs_service.app -refresh=false -lock=false -out=tfplan
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+      # 🚀 Stap 8: Terraform Apply (alleen ECS)
+      - name: Terraform Apply (ECS only)
+        run: terraform apply -target=aws_ecs_service.app -auto-approve tfplan

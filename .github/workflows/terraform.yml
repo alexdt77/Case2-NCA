@@ -55,7 +55,7 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform Validate
-        run: terraform validate -no-color -lock=false -refresh=false
+        run: terraform validate -no-color
         
       - name: Terraform Plan
         run: |

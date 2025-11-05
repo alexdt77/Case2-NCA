@@ -1,11 +1,11 @@
-name: Destroy AWS Infrastructure
+name: Terraform Destroy (Full Cleanup)
 
 on:
   workflow_dispatch:
 
 jobs:
   destroy:
-    name: Terraform Destroy (Full Cleanup)
+    name: Destroy AWS Infrastructure
     runs-on: self-hosted
     permissions:
       id-token: write
@@ -13,7 +13,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: Infra/core
+        working-directory: Infra  # 👈 DIT IS DE JUISTE MAP
 
     env:
       AWS_REGION: eu-central-1
@@ -38,9 +38,9 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false -reconfigure
 
-      - name: Force Remove ECS Services (prevent stuck clusters)
+      - name: Remove ECS Services
         run: |
-          echo "Removing ECS services before cluster deletion..."
+          echo "Removing ECS services..."
           for cluster in $(aws ecs list-clusters --query "clusterArns[]" --output text); do
             for service in $(aws ecs list-services --cluster $cluster --query "serviceArns[]" --output text); do
               aws ecs update-service --cluster $cluster --service $service --desired-count 0 || true
@@ -48,15 +48,12 @@ jobs:
             done
           done
 
-      - name: Terraform Unlock (if stuck)
-        run: terraform force-unlock -force 9999999 || true
-
       - name: Terraform Destroy
         run: terraform destroy -auto-approve -lock=false -var "db_master_password=ChangeMe_StrongPW!"
 
       - name: Force Cleanup (ECR, Lambda, S3, DynamoDB)
         run: |
-          echo "Performing extra cleanup..."
+          echo "Force cleanup in case Terraform missed something..."
           for repo in $(aws ecr describe-repositories --query "repositories[].repositoryName" --output text); do
             aws ecr delete-repository --repository-name $repo --force || true
           done
